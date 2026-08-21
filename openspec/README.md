@@ -1,8 +1,8 @@
 # health-log OpenSpec
 
-This directory is the delivery contract for the initial public release of
-`health-log`. It turns the proposal into independently verifiable requirements,
-technical decisions, and an ordered implementation backlog.
+This directory is the delivery plan for a single-owner personal deployment of
+`health-log`. It turns the proposal into small, verifiable steps without
+pretending this is a multi-user production service.
 
 ## Change package
 
@@ -17,12 +17,12 @@ technical decisions, and an ordered implementation backlog.
 
 1. Complete work in dependency order in `tasks.md` and keep evidence current.
 2. Adjust the relevant `spec.md` before changing a user-visible behavior.
-3. Never use production health data in tests, issues, CI artifacts, or AI prompts beyond the requested scope.
-4. The $0 target is a budget guardrail, not a guarantee: free tiers and quotas can change. Configure limits and alerts before accepting real data.
-5. This is a personal-use tool, not a medical device. It does not diagnose, prescribe, or provide emergency guidance.
+3. Never use real health data in tests, issues, screenshots, or AI prompts beyond the requested scope.
+4. The $0 target is a budget guardrail, not a guarantee. Keep one resource set and enable a small AWS cost alert before use.
+5. Keep the owner-only token, Telegram allowlist, webhook secret, and SSM-stored credentials even though the project is simple.
+6. This is a personal-use tool, not a medical device. It does not diagnose, prescribe, or provide emergency guidance.
 
 ## Status lifecycle
 
-`Draft` -> `Approved` -> `In implementation` -> `Release candidate` ->
-`Released`. Release requires all required tasks and specification scenarios to
-have automated or recorded manual evidence.
+`Draft` -> `In implementation` -> `Personal use`. A task is complete when its
+focused automated check or listed manual check has been performed.

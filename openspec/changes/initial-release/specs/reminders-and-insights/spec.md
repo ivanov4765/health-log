@@ -1,28 +1,26 @@
-# Reminders and insights specification
+# Optional reminders and insights specification
 
-## Requirement: reminders are owner-controlled and reliable
+Neither capability is required for the logging/dashboard MVP.
 
-The system SHALL let an authorized owner enable, change, and disable reminders.
-It SHALL send enabled reminders through Telegram and record delivery failures
-without sensitive text in logs.
+## Requirement: one fixed daily reminder can be enabled
 
-### Scenario: disabled reminder does not send
+When enabled in Terraform, EventBridge SHALL send one configured daily Telegram
+message to the owner. Changing or disabling it is done by changing Terraform
+variables and applying them.
 
-- **WHEN** an owner disables a reminder before its next due occurrence
-- **THEN** the next occurrence produces no Telegram notification
+### Scenario: reminder is disabled
 
-## Requirement: insights are bounded, descriptive, and optional
+- **WHEN** the reminder variable is disabled and Terraform is applied
+- **THEN** no future reminder is sent
 
-The system SHALL use Gemini only after an authenticated request. It SHALL send
-only selected, bounded, owner-authorized events, exclude internal identifiers,
-and frame output as non-diagnostic information with its context range shown.
+## Requirement: Gemini insight is explicitly requested and informational
 
-### Scenario: insight over selected history
+When Gemini configuration exists, the API MAY send at most 100 events from the
+owner's selected date range to Gemini after a valid dashboard-token request.
+The response SHALL include a short informational/not-medical-advice notice.
 
-- **WHEN** a signed-in user asks for an insight over a valid date range
-- **THEN** the result identifies range/event count, includes a disclaimer, and makes no diagnosis or prescription
+### Scenario: Gemini is not configured
 
-### Scenario: Gemini is unavailable
-
-- **WHEN** Gemini times out or returns an error
-- **THEN** the system returns a recoverable unavailable message and normal logging/history continue to work
+- **WHEN** `GEMINI_API_KEY` is absent
+- **THEN** the insight endpoint reports that insights are unavailable and event
+  capture/history continue to work

@@ -1,0 +1,24 @@
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# IDE and OS files
+.idea/
+.DS_Store
+
+# Go build and test output
+bin/
+coverage.out
+*.test
+
+# Frontend build output
+web/node_modules/
+web/dist/
+
+# Terraform local state and plans
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log

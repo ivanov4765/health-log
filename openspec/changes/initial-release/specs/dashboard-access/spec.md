@@ -1,37 +1,28 @@
 # Dashboard access specification
 
-## Requirement: health-data APIs require server-enforced authentication
+## Requirement: dashboard data needs the personal access token
 
-The system SHALL serve public static dashboard assets without health data or
-secrets. Every health-data API SHALL require a valid short-lived,
-server-validated session.
+Public GitHub Pages files SHALL not contain health data or the access token.
+Every event, export, or insight request SHALL include
+`X-Health-Log-Token`, which Lambda compares with the SSM-stored token.
 
-### Scenario: unauthenticated data request
+### Scenario: visitor opens the public dashboard
 
-- **WHEN** a browser or script requests events, export, preferences, or insights without a valid session
-- **THEN** the API rejects it and returns no health data
+- **WHEN** someone loads the GitHub Pages URL without entering the token
+- **THEN** they can see only the empty sign-in prompt and no health data
 
-### Scenario: session expiry
+### Scenario: invalid token request
 
-- **WHEN** a dashboard session expires
-- **THEN** protected requests are rejected and the dashboard guides a sign-in without discarding unsaved local form input
+- **WHEN** a request has no token or a wrong token
+- **THEN** the API rejects it and returns no event data
 
-## Requirement: browser mutations resist cross-site requests
+## Requirement: dashboard offers a minimal personal view
 
-The system SHALL restrict CORS to configured dashboard origins and SHALL verify
-a per-session CSRF token for authenticated browser mutations.
+The dashboard SHALL let the owner enter the token, view the last 30 days of
+events, view a simple chart, and export a selected range. It does not edit or
+delete events in v0.1.0.
 
-### Scenario: cross-site deletion attempt
+### Scenario: owner views history
 
-- **WHEN** a third-party origin submits a cookie-bearing deletion without a valid CSRF token
-- **THEN** the API rejects it and the event remains unchanged
-
-## Requirement: dashboard presents user-controlled history
-
-The dashboard SHALL allow date selection, event viewing, own-event CRUD, export
-of a selected range, and charts whose labels/units match stored values.
-
-### Scenario: user deletes an event
-
-- **WHEN** the user confirms deletion of one event
-- **THEN** only that event is removed from later reads and unrelated records remain intact
+- **WHEN** the owner enters the correct token
+- **THEN** the dashboard loads the recent list and chart from the API
