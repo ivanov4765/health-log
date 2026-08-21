@@ -1,78 +1,93 @@
-# Initial release: personal health event logging
+# Initial release: personal health log
 
-**Status:** Draft  
-**Owner:** Project maintainer  
+**Status:** Revised for a single personal AWS account
+**Owner:** One person
 **Target:** v0.1.0  
-**Source:** `project_proposa.md`, version 1.0.0
+**Source:** `project_proposa.md`, simplified for personal use
 
 ## Intent
 
-Deliver a low-maintenance personal health journal that lets an authorized person
-capture medication, symptom, and measurement events through Telegram; review
-trends in a static dashboard; receive reminders; and ask for descriptive,
-non-diagnostic summaries of selected records.
+Build a small private journal for one owner: log medication, symptoms, and
+measurements from Telegram; view recent history in a static web page; and
+optionally receive one daily reminder or request a Gemini summary. This is a
+learning/personal project, not a multi-user product or production service.
 
-## Outcomes and success measures
+## Definition of useful
 
-| Outcome | Release measure |
-| --- | --- |
-| Fast capture | A valid Telegram message receives confirmation within 5 seconds at p95, excluding provider outages. |
-| Accurate history | A created event is visible in its date-range query; a Telegram retry cannot duplicate it. |
-| Private access | Automated tests reject cross-user access and unauthenticated health-data reads/writes. |
-| Useful history | Dashboard filters and visualizes medication adherence, symptom severity, and measurements. |
-| Controlled AI | AI receives only selected authorized records, carries a disclaimer, and exposes no server secrets. |
-| Low-cost operation | A fresh deployment has defined limits, a budget alert, and OIDC-only deployment. |
+The first usable version is complete when the owner can send a valid `/log`
+message to Telegram, see the saved entry in the dashboard, and confirm that a
+random visitor to the public dashboard cannot read the data without the access
+token. All other features build on that vertical slice.
 
-## In scope
+## Scope
 
-- Go Lambdas, Terraform, static dashboard, tests, and GitHub Actions in one repository.
-- Telegram capture of symptoms, medication intake, and numeric measurements.
-- DynamoDB persistence, query API, user preferences, and idempotent webhooks.
-- Configurable daily reminders through EventBridge Scheduler.
-- Dashboard sign-in, history, charts, event editing, export, and deletion.
-- Gemini-backed summaries/questions over a selected bounded date range.
-- OIDC deployment, monitoring, restore procedure, and owner documentation.
+### Included in v0.1.0
 
-## Explicitly out of scope for v0.1.0
+- One AWS account, one region, one deployed application environment, and a small
+  S3-backed Terraform state. The state bucket and GitHub OIDC role are
+  bootstrapped once.
+- One Telegram bot, restricted to one configured Telegram user ID.
+- One Lambda Function URL, one on-demand DynamoDB table, and one static GitHub
+  Pages dashboard.
+- Explicit `/log` and `/help` Telegram commands; no natural-language AI parser.
+- Dashboard token prompt, last-30-days event list, simple charts, and CSV/JSON
+  export. Dashboard editing and deletion are deferred.
+- Optional Gemini insight over a selected range and one fixed daily Telegram
+  reminder, after the logging/dashboard MVP works.
+- Basic CloudWatch logs with short retention and a small AWS Budget or Free Tier
+  alert set manually in the AWS console.
+- GitHub Actions deploys the Lambda package and Terraform automatically on a
+  push to `main`, using short-lived AWS OIDC credentials.
 
-- Clinical diagnosis, dose recommendations, emergency triage, or provider integrations.
-- Shared journals, caregiver access, organizations, or payments.
-- Native apps, offline sync, wearables, file uploads, and full-text search.
-- Guaranteed zero cost, HIPAA certification, or a production SLA.
-- AI-driven changes to medication schedules.
+### Not included
 
-## Delivery assumptions requiring confirmation before production use
+- Multiple users, accounts, roles, sharing, caregiver access, or organization
+  features.
+- Separate development/staging/production environments, pull-request approval
+  gates, complex release promotion, or uptime targets.
+- Dashboard password/session flow, cookies, CSRF infrastructure, WAF, complex
+  rate limiting, custom metrics/alarms, backups/PITR, and restore drills.
+- Natural-language interpretation during capture, medication advice, diagnosis,
+  emergency guidance, native apps, wearables, uploads, or full-text search.
 
-| Assumption | Initial-release decision |
-| --- | --- |
-| User model | One owner is supported end-to-end; data remains user-scoped for future isolation. |
-| Locale | Instants are UTC; the dashboard stores an IANA timezone. Initial UI is English. |
-| Retention | Events remain until owner deletion; backups follow the chosen policy. |
-| Auth | Static assets are public, but every health-data API requires a password-derived short-lived session. CORS is not authorization. |
-| Bot access | Only allowlisted Telegram IDs may use the bot. |
-| AI provider | Gemini is optional; capture and history work when it is unavailable. |
+## Minimal privacy boundary
+
+Health data is still sensitive even for a personal project. The intentionally
+small baseline is: keep all provider credentials and the dashboard access token
+outside Git, store them in AWS SSM Parameter Store SecureString, allow only the
+owner's Telegram ID, verify Telegram's webhook secret, and require a custom
+dashboard token header for every data API. Public dashboard files contain no
+health data or token.
+
+This is a pragmatic personal-project boundary, not a compliance claim.
 
 ## Milestones
 
-1. **Foundation:** repository layout, data contract, threat model, and Terraform bootstrap are reviewed.
-2. **Capture vertical slice:** an allowlisted Telegram user can create/retrieve an event in non-production.
-3. **Dashboard vertical slice:** an authenticated user can browse, chart, create, update, export, and delete own events.
-4. **Automation and intelligence:** reminders and bounded AI insights fail safely.
-5. **Release readiness:** CI/CD, observability, restore drill, security tests, accessibility checks, and runbook are complete.
+1. **Automation bootstrap:** owner creates the state bucket and GitHub OIDC role
+   once; pushes to `main` then deploy Lambda and Terraform automatically.
+2. **MVP logging:** Terraform deploys DynamoDB/Lambda; owner can log a single
+   event through Telegram and retrieve it through a protected API.
+3. **MVP dashboard:** GitHub Pages asks for the access token and shows recent
+   events and a chart.
+4. **Nice-to-haves:** add the fixed daily reminder and Gemini summary only if
+   they remain useful after regular logging begins.
+5. **Personal launch:** enable the bot webhook, set a small cost alert, run the
+   manual smoke checklist, and use the project.
 
-## Risks and mitigations
+## Small risk register
 
-| Risk | Mitigation / release gate |
+| Risk | Practical response |
 | --- | --- |
-| Health-data exposure | Data minimization, encryption, managed secrets, redacted logs, allowlists, API auth, and authorization tests. |
-| Duplicate webhook events | Conditional persistence of a Telegram update receipt. |
-| Bypassed static-site password | No data in site bundle; session checked by every API. |
-| Unsafe AI output | Bounded context, non-diagnostic rules, source-window metadata, and raw-record access. |
-| Free-tier overrun | Limits, budgets, alerts, manual AI rate caps, and cost review. |
-| Provider outage | Bounded retries and usable non-AI capture/history paths. |
+| Token or bot credential is committed | Keep `.env` ignored, use SSM for deployed secrets, rotate the affected secret. |
+| Automatic deploy gets AWS access | Limit the OIDC role to this GitHub repository and `main`; use no stored AWS access keys. |
+| A stranger sends bot updates | Check Telegram secret header and hard-code/configure the single allowed Telegram ID. |
+| Public Pages site exposes data | Do not embed data/token in assets; API rejects requests without `X-Health-Log-Token`. |
+| Free-tier usage grows unexpectedly | Keep one region/resource set, use on-demand DynamoDB, set a small manual budget alert, and remove unused resources. |
+| Gemini is unhelpful or unavailable | Leave it disabled; core logging does not depend on it. |
 
-## Release criteria
+## Release check
 
-Create the v0.1.0 tag only after required `tasks.md` items are checked, specs
-pass, staging smoke tests use synthetic data, and the security/cost checklist is
-approved.
+Before personal use, complete the MVP tasks, confirm a `main` push completes the
+deployment workflow, run the manual smoke checklist with non-sensitive test
+entries, and verify the AWS budget/Free Tier alert is enabled. There is no
+staging or formal production release process.

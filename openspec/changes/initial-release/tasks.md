@@ -1,63 +1,96 @@
-# Execution tasks: initial release
+# Execution tasks: personal MVP
 
-**Status:** `[ ]` not started, `[-]` in progress, `[x]` complete.  
-**Gate:** a required phase exit; do not start dependent work until its evidence exists.
+This is a deliberately small one-account checklist. `[x]` means completed;
+`[ ]` means pending. Verification is either a focused unit test or a recorded
+manual check—not a production-release gate.
 
-## 0. Product and safety baseline
+## 0. One-time owner setup
 
-- [ ] **0.1 Confirm production settings** — Record owner, Pages URL, Telegram allowlist, timezone, budget threshold, alert route, backup choice, retention, and reminder copy in `docs/operations/configuration.md`. **Verify:** review confirms no secrets are recorded.
-- [ ] **0.2 Publish privacy and safety copy** — Write retention, export/deletion, AI disclosure, non-medical, and emergency disclaimer copy. **Verify:** dashboard and README link it.
-- [ ] **0.3 Threat model (Gate)** — Map assets, actors, trust boundaries, bot takeover, session theft, IDOR, spoofed webhook, prompt injection, and CI abuse to mitigations/tests. **Verify:** each high risk has an owner and test task.
+- [ ] **0.1 Record non-secret settings** — Write region, GitHub Pages URL,
+  Telegram owner ID, timezone, and the desired fixed reminder time in
+  `docs/personal-setup.md`. **Verify:** document contains no credential.
+- [ ] **0.2 Create required secrets** — Put Telegram bot token, webhook secret,
+  and random dashboard access token into named SSM SecureString parameters; add
+  Gemini key only if using insights. **Verify:** `aws ssm get-parameter
+  --with-decryption` works locally; no value is committed.
+- [ ] **0.3 Enable a small cost alert** — Create an AWS Budget or Free Tier
+  alert in the console. **Verify:** alert and email destination are visible in
+  the billing console.
+- [ ] **0.4 Bootstrap CI access once** — From the owner's local AWS profile,
+  create a private versioned S3 Terraform-state bucket, GitHub OIDC provider,
+  and deploy role restricted to this repository's `main` branch. Put region,
+  role ARN, and state bucket in GitHub Actions variables. **Verify:** a small
+  GitHub Actions OIDC test can assume the role without stored AWS keys.
 
-## 1. Foundation and local development
+## 1. Foundation
 
-- [ ] **1.1 Establish repository structure** — Add Go module, `cmd`, `internal`, `web`, `infra/terraform`, `tests`, `docs`, `.gitignore`, and placeholder-only `.env.example`. **Verify:** clean clone builds; no IDE/secrets/build output is tracked.
-- [ ] **1.2 Pin tooling and checks** — Specify Go/Terraform/browser tooling plus format, lint, unit-test, and dependency-audit commands. **Verify:** one local command runs the full validation suite.
-- [ ] **1.3 Implement domain contract** — Add event DTOs, validation, pagination, clock abstraction, and error codes. **Verify:** table-driven tests cover boundaries and invalid input.
-- [ ] **1.4 Implement configuration loader** — Validate runtime settings at cold start and treat Gemini as optional. **Verify:** missing/malformed settings fail safely without secrets in output.
+- [x] **1.1 Repository and Go module** — Go code lives in `backend/`; dashboard,
+  Terraform, docs, and tests have their own top-level directories. **Verify:**
+  `make -C backend build` succeeds.
+- [x] **1.2 Local checks** — Tool versions, format/lint/test/build commands, and
+  sample configuration are documented. **Verify:** `make -C backend check` succeeds.
+- [x] **1.3 Event contract** — Event types, field validation, date-range query,
+  pagination, and a clock abstraction exist with unit tests. **Verify:**
+  `make -C backend test` succeeds.
+- [ ] **1.4 Simplify runtime configuration** — Replace session/password settings
+  with `DASHBOARD_ACCESS_TOKEN`; keep Gemini optional and require the owner
+  Telegram ID. **Verify:** config tests reject missing token/owner ID and do
+  not print secret values.
 
-## 2. Infrastructure and deployment boundary
+## 2. Automated AWS deployment
 
-- [ ] **2.1 Terraform state and environments** — Create encrypted/locked remote state and isolated `dev`, `staging`, `prod` variables/workspaces. **Verify:** `fmt`, `validate`, and a non-prod plan succeed; state has no plaintext secret.
-- [ ] **2.2 Provision compute and data** — Define DynamoDB, Functions/URLs, IAM, secret references, log retention, and origin-specific CORS. **Verify:** plan demonstrates least privilege and no public datastore endpoint.
-- [ ] **2.3 Provision scheduler and alarms** — Define EventBridge schedules, retry/DLQ policy, CloudWatch metrics/alarms, and spend alert. **Verify:** controlled failure reaches test alert path.
-- [ ] **2.4 Configure GitHub OIDC (Gate)** — Scope deploy-role trust to repository, branch/tag, and GitHub Environment; require production approval. **Verify:** workflow deploys using OIDC with no static AWS credentials.
+- [ ] **2.1 Write single-environment Terraform** — Create one table, one Lambda
+  Function URL, log retention, IAM role, SSM parameter-name references, and a
+  configured dashboard CORS origin. Configure the S3 state backend with
+  encryption/lockfile locking. **Verify:** `terraform fmt`, `validate`, and
+  `plan` succeed from `infra/terraform`.
+- [ ] **2.2 Add the deploy workflow** — On `main` push and manual dispatch, run
+  backend checks, build a Linux Lambda `bootstrap` ZIP, assume the GitHub OIDC
+  role, then run Terraform init/plan/apply. **Verify:** workflow uses
+  `id-token: write` and contains no AWS access-key secret.
+- [ ] **2.3 Verify automatic deployment** — Merge a harmless Terraform or Lambda
+  change to `main` and confirm the workflow updates the account and reports the
+  Function URL. **Verify:** a simple health request reaches Lambda after CI runs.
 
-## 3. Core persistence and protected API
+## 3. Logging API and Telegram MVP
 
-- [ ] **3.1 DynamoDB repository** — Implement conditional CRUD, own-user range query, cursor pagination, profile/reminder/receipt access. **Verify:** DynamoDB Local tests prove no scan and no cross-user data access.
-- [ ] **3.2 Session authentication** — Implement password verification, login throttle, secure short-lived sessions, logout, and CSRF. **Verify:** no/expired/tampered sessions and CSRF-free mutations fail.
-- [ ] **3.3 Event and preference API** — Implement `/v1/events` and `/v1/preferences` handlers with ownership and range/schema validation. **Verify:** HTTP tests cover CRUD, pagination, malformed requests, and IDOR.
-- [ ] **3.4 Export and deletion** — Stream JSON/CSV export and owned-event deletion. **Verify:** export contains only selected user/date range; deletion is immediately absent from reads.
-- [ ] **3.5 API vertical slice (Gate)** — Deploy staging and exercise synthetic data. **Verify:** deployed smoke script passes and CORS/security headers are inspected.
+- [ ] **3.1 Store and query events** — Implement DynamoDB conditional event
+  writes, update-receipt writes, and date-range reads for `OWNER`. **Verify:**
+  unit/integration test creates, reads, and rejects a duplicate update ID.
+- [ ] **3.2 Protect dashboard routes** — Check `X-Health-Log-Token` in constant
+  time for event/export/insight routes; set the one allowed CORS origin.
+  **Verify:** curl without/wrong token gets no data; correct token gets test data.
+- [ ] **3.3 Implement Telegram commands** — Add `/help` and explicit `/log`
+  parsing; verify webhook secret and owner Telegram ID. **Verify:** fixture tests
+  reject bad secret, wrong owner, and malformed log.
+- [ ] **3.4 Connect the real bot** — Set the Telegram webhook and send one
+  non-sensitive test log. **Verify:** exactly one DynamoDB item and confirmation
+  reply appear.
 
-## 4. Telegram capture
+## 4. Dashboard MVP
 
-- [ ] **4.1 Webhook validator and client** — Constant-time secret check, update parsing, allowlist, and time-bounded Telegram reply client. **Verify:** forged-secret/non-allowlisted fixtures create no event.
-- [ ] **4.2 Deterministic commands** — Implement `/help`, `/log`, `/stats`, syntax guidance, and errors. **Verify:** fixtures cover valid, malformed, unknown command, and timezone cases.
-- [ ] **4.3 Assisted free text** — Begin with key-value parsing; any AI parsing must show explicit confirmation before persistence. **Verify:** ambiguous input cannot silently create/alter an event.
-- [ ] **4.4 Idempotency and webhook registration** — Conditional receipt write before processing; configure HTTPS webhook secret. **Verify:** replayed update ID produces exactly one event.
-- [ ] **4.5 Capture vertical slice (Gate)** — Run staging test with an allowlisted account. **Verify:** confirmation latency and persisted record meet success measures.
+- [ ] **4.1 Build one static page** — Add token prompt, last-30-days event list,
+  simple Chart.js chart, loading/error state, and export link. **Verify:** open
+  locally with synthetic data and confirm no token/data is in built assets.
+- [ ] **4.2 Publish GitHub Pages** — Enable Pages once, then deploy `web/` from
+  a GitHub Actions Pages job on `main`; set the deployed origin in Terraform.
+  **Verify:** owner can enter token, see the test event, and export it;
+  unauthenticated browser request fails.
 
-## 5. Dashboard
+## 5. Optional additions after MVP
 
-- [ ] **5.1 Accessible shell** — Build sign-in, expiry, responsive navigation, loading/error state, and privacy/safety links. **Verify:** keyboard-only journey and automated accessibility scan have no critical issue.
-- [ ] **5.2 History and editor** — Add date/type filters, pagination, create/edit/delete confirmation, validation, and export. **Verify:** browser E2E tests complete every flow.
-- [ ] **5.3 Charts** — Implement Chart.js symptom, adherence, and measurement views with units/no-data states. **Verify:** fixtures render correct labels/values; assets include no data.
-- [ ] **5.4 Staging Pages deployment (Gate)** — Configure build, base path, CSP, HTTPS references, and API origin. **Verify:** deployed site authenticates and completes dashboard smoke flow.
+- [ ] **5.1 Fixed daily reminder** — Add one EventBridge schedule configured by
+  Terraform variables and a small Telegram sender. **Verify:** test schedule
+  sends one reminder; changing or disabling it requires Terraform apply.
+- [ ] **5.2 Simple Gemini insight** — Add a single dashboard question box and
+  Lambda endpoint that submits at most 100 selected events. **Verify:** answer
+  shows range/disclaimer; missing Gemini key leaves dashboard working.
 
-## 6. Reminders and AI insights
+## 6. Personal launch
 
-- [ ] **6.1 Reminder lifecycle** — Validate preferences, create/update/disable schedules, dispatch idempotently, and record redacted delivery outcomes. **Verify:** one due reminder sends; disabled one does not; retry is observable.
-- [ ] **6.2 Bounded Gemini client** — Implement timeout, context cap, record normalization/redaction, and error mapping. **Verify:** mocked provider receives only authorized selected-range data.
-- [ ] **6.3 Insights API/UI** — Add question, date preview, failure state, context metadata, disclaimer, and raw-record link. **Verify:** Gemini failure leaves all non-AI functions usable.
-- [ ] **6.4 AI safety review (Gate)** — Red-team advice, prompt injection, and data-exfiltration fixtures. **Verify:** approved safe responses become regression tests.
-
-## 7. Release hardening and operations
-
-- [ ] **7.1 CI/CD** — PR checks run format, lint, tests, web checks, Terraform plan, secret/dependency scans; approved main deploys staging; production needs approval. **Verify:** deliberate failing fixture blocks merge/deploy.
-- [ ] **7.2 Performance and limits** — Measure cold/warm path, webhook latency, pagination, duplicate concurrency, rate limit, and payload limits. **Verify:** results meet or revise release measures with rationale.
-- [ ] **7.3 Restore drill** — Restore/export synthetic data to isolation and query it. **Verify:** time/result/corrections recorded in runbook.
-- [ ] **7.4 Operations runbook** — Cover setup, rotation, allowlist, outage, cost alarm, backup/restore, export/delete, teardown, and rollback. **Verify:** maintainer follows it in staging without source changes.
-- [ ] **7.5 Release candidate (Gate)** — Tag RC, deploy staging, run specs/manual synthetic smoke tests, and review cost/security. **Verify:** evidence exists for each task; no unresolved critical/high issue.
-- [ ] **7.6 Production release** — Approve production plan, deploy, register bot webhook, smoke test, and release notes. **Verify:** alarms are green and owner can capture/view/delete an event.
+- [ ] **6.1 Write a short personal runbook** — Document bootstrap, automatic
+  deploy, secret/token rotation, webhook setup, export, and `terraform destroy`.
+  **Verify:** it can be followed from a clean terminal session.
+- [ ] **6.2 Run the manual smoke check** — Log a medication and symptom, view
+  dashboard history, try incorrect token, export data, and check the cost
+  alert. **Verify:** record results in `docs/personal-setup.md`.

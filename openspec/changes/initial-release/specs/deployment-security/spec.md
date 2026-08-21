@@ -1,33 +1,48 @@
-# Deployment and security specification
+# Personal deployment specification
 
-## Requirement: deployments use short-lived GitHub OIDC credentials
+## Requirement: GitHub Actions deploys one AWS account
 
-The system SHALL deploy AWS resources from GitHub Actions only by assuming an
-AWS role through GitHub OIDC. Trust SHALL limit repository, branch/tag, and
-environment claims. Static AWS keys SHALL not be required or stored.
+GitHub Actions SHALL deploy Lambda and the single Terraform configuration on a
+push to `main` or manual dispatch. It SHALL assume a dedicated AWS role through
+GitHub OIDC and SHALL not use stored AWS access keys. The role trust policy
+SHALL be limited to this repository and its `main` branch.
 
-### Scenario: approved production deployment
+### Scenario: main branch deployment
 
-- **WHEN** an approved job from the configured production environment deploys an allowed revision
-- **THEN** it assumes only the scoped deployment role and applies the reviewed production plan
+- **WHEN** a Lambda or Terraform change is pushed to `main`
+- **THEN** the workflow builds the Linux Lambda artifact, assumes the OIDC role,
+  and applies Terraform to the one AWS account
 
-## Requirement: secrets and sensitive data are protected
+## Requirement: Terraform state is available to CI
 
-The system SHALL keep provider tokens, password-verifier material, session keys,
-and webhook secrets in managed storage or protected deployment inputs. It SHALL
-not commit, expose, or log them.
+The owner SHALL create a private, encrypted, versioned S3 state bucket once
+from a local AWS profile. Application Terraform SHALL use that S3 backend with
+lockfile locking. The bootstrap state remains ignored locally.
 
-### Scenario: secret scanning
+### Scenario: first CI setup
 
-- **WHEN** a pull request introduces a token-shaped secret outside an approved test mechanism
-- **THEN** CI secret scanning fails before merge
+- **WHEN** the owner completes the bootstrap Terraform apply and sets repository
+  variables for region, role ARN, and state-bucket name
+- **THEN** a workflow run initializes the application Terraform backend without
+  creating a separate environment
 
-## Requirement: controlled-budget observability
+## Requirement: secrets stay out of source control
 
-The system SHALL emit privacy-preserving availability/error metrics, configure
-an alert route and spend threshold, and document the response to cost alerts.
+The Telegram token, webhook secret, dashboard token, and optional Gemini key
+SHALL be named SSM SecureString parameters and excluded from Git. Terraform and
+GitHub Actions SHALL receive parameter names only, not secret values.
 
-### Scenario: budget threshold reached
+### Scenario: repository inspection
 
-- **WHEN** estimated monthly spend reaches the configured threshold
-- **THEN** the owner receives an alert and can follow documented steps to investigate and limit spend
+- **WHEN** the owner searches tracked files for the deployed secret values
+- **THEN** none are found
+
+## Requirement: owner can notice unexpected cost
+
+The owner SHALL configure a small AWS Budget or Free Tier alert manually before
+using the system with personal records.
+
+### Scenario: cost-alert check
+
+- **WHEN** the owner opens the AWS billing console after setup
+- **THEN** the configured alert and email destination are visible
